@@ -1,0 +1,87 @@
+{
+    "query": {
+        "bool": {
+		     "must": [
+		        {"range": {"date": {"gte": "2020-12-01", "lte": "2021-05-31"}}},
+                {"term": {"symbol": "FDLO"}}
+		    ]
+		}
+	},
+    "aggs": {
+        "MACD_Histogram": {
+            "date_histogram": {
+                "field": "date",
+                "interval": "1d",
+                "format": "yyyy-MM-dd"
+            },
+            "aggs": {
+                "TP": {
+                    "scripted_metric": {
+                        "init_script": "state.totals=[]",
+                        "map_script": "state.totals.add((doc.high.value+doc.low.value+doc.close.value)/3)",
+                        "combine_script": "double total=0; for (t in state.totals) {total += t} return total",
+                        "reduce_script": "return states[0]"
+                    }
+                },
+                "DateStr": {
+                    "min": { "field": "date"}
+                },
+                "STP": {
+                    "bucket_selector": {
+                        "buckets_path": {"count":"_count"},
+                        "script": "params.count > 0"
+                    }
+                },
+                "EWMA12": {
+                    "moving_fn": {"script": "MovingFunctions.ewma(values, 2/(12+1))", "window": 12, "buckets_path": "TP.value"}
+                },
+                "EWMA26": {
+                    "moving_fn" : {"script": "MovingFunctions.ewma(values, 2/(26+1))", "window": 26, "buckets_path": "TP.value"}
+                },
+                "MACD": {
+                    "bucket_script": {
+                        "buckets_path": {
+                            "EWMA12": "EWMA12",
+                            "EWMA26": "EWMA26"
+                        },
+                        "script": "params.EWMA12 - params.EWMA26"
+                    }
+                },
+                "Signal": {
+                    "moving_fn": {"script": "MovingFunctions.ewma(values, 2/(9+1))", "window": 9, "buckets_path": "MACD"}
+                },
+                "MACD_Histogram": {
+                    "bucket_script": {
+                        "buckets_path": {
+                            "MACD": "MACD",
+                            "Signal": "Signal"
+                        },
+                        "script": "params.MACD - params.Signal"
+                    }
+                },
+                "MACD_HistogramDiff": {
+                    "derivative": {
+                        "buckets_path": "MACD_Histogram" 
+                     }
+                },
+                "MACD_HistogramType": {
+                    "bucket_script": {
+                        "buckets_path": {
+                            "MACD_Histogram": "MACD_Histogram",
+                            "MACD_HistogramDiff": "MACD_HistogramDiff"
+                        },
+                        "script": "(params.MACD_Histogram > 0) ? (params.MACD_HistogramDiff > 0 ? 3 : 4) : ((params.MACD_Histogram < 0) ? (params.MACD_HistogramDiff > 0 ? 2 : 1): 0)"
+                    }
+                },
+                "SMACD_Histogram": {
+   		            "bucket_selector": {
+                        "buckets_path": {"DateStr":"DateStr"},
+                        "script": "params.DateStr >= 1610668800000L"
+                    }
+                }
+
+            }
+        }
+    }
+    ,"size":0
+}
