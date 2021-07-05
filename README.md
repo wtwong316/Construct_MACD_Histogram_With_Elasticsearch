@@ -1,5 +1,6 @@
 # Construct_MACD_Histogram_With_Elasticsearch
 Materials for the article "Construct MACD Histogram with Elasticsearch" in Medium
+(https://wtwong316.medium.com/construct-macd-histogram-with-elasticsearch-ecd6b627457e)
 
 The following steps have been tested with Elasticsearch Server v7.10.1
 
